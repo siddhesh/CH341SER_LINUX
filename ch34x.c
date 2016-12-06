@@ -381,7 +381,7 @@ static void ch34x_set_termios( struct usb_serial_port *port,
 	unsigned short value = 0;
 	unsigned short index = 0;
 
-	dbg_ch34x("%s - port:%d", __func__, port->number);
+	dbg_ch34x("%s - port:%d", __func__, port->port_number);
 	
 	spin_lock_irqsave( &priv->lock, flags );
 	if( !priv->termios_initialized ) {
@@ -402,7 +402,7 @@ static void ch34x_set_termios( struct usb_serial_port *port,
 		return;
 
 	cflag = termios->c_cflag;
-	dbg_ch34x("%s (%d) cflag=0x%x\n", __func__, port->number, cflag );
+	dbg_ch34x("%s (%d) cflag=0x%x\n", __func__, port->port_number, cflag );
 
 	// Get the byte size
 	switch( cflag & CSIZE )
@@ -509,7 +509,7 @@ static int ch34x_tiocmget( struct usb_serial_port *port,
 	/*unsigned int msr;*/
 	unsigned int retval;
 
-	dbg_ch34x("%s - port:%d", __func__, port->number);
+	dbg_ch34x("%s - port:%d", __func__, port->port_number);
 
 	if( !usb_get_intfdata( port->serial->interface) ) 
 		return -ENODEV;
@@ -552,7 +552,7 @@ static void ch34x_close( struct usb_serial_port *port,
 	long timeout;
 	wait_queue_t wait;
 
-	dbg_ch34x("%s - port:%d", __func__, port->number);
+	dbg_ch34x("%s - port:%d", __func__, port->port_number);
 	
 	// wait for data do drain from the buffer
 	spin_lock_irqsave( &priv->lock, flags );
@@ -623,7 +623,7 @@ static int ch34x_open( struct usb_serial_port *port,
 	struct usb_serial *serial = port->serial;
 	int retval;
 
-	dbg_ch34x("%s - port:%d", __func__, port->number );
+	dbg_ch34x("%s - port:%d", __func__, port->port_number );
 
 	usb_clear_halt( serial->dev, port->write_urb->pipe );
 	usb_clear_halt( serial->dev, port->read_urb->pipe );
@@ -694,7 +694,7 @@ static int ch34x_tiocmset( struct usb_serial_port *port,
 	/*unsigned int mcr = priv->line_control;*/
 	u8 control;
 
-	dbg_ch34x("%s - port:%d", __func__, port->number);
+	dbg_ch34x("%s - port:%d", __func__, port->port_number);
 
 	if( !usb_get_intfdata(port->serial->interface) ) 
 		return -ENODEV;
@@ -723,14 +723,14 @@ static int wait_modem_info( struct usb_serial_port *port,
 	unsigned int status;
 	unsigned int changed;
 
-	dbg_ch34x("%s -port:%d", __func__, port->number);
+	dbg_ch34x("%s -port:%d", __func__, port->port_number);
 
 	spin_lock_irqsave( &priv->lock, flags );
 	prevstatus = priv->line_status;
 	spin_unlock_irqrestore( &priv->lock, flags );
 
 	while(1) {
-		interruptible_sleep_on( &priv->delta_msr_wait );
+		wait_event_interruptible (priv->delta_msr_wait, 0);
 		// see if a signal did it
 		if( signal_pending(current) ) 
 			return -ERESTARTSYS;
@@ -770,13 +770,13 @@ static int ch34x_ioctl( struct usb_serial_port *port,
 {
 	//struct usb_serial_port *port = tty->driver_data;
 #endif
-	dbg_ch34x("%s - port:%d, cmd=0x%04x", __func__, port->number, cmd);
+	dbg_ch34x("%s - port:%d, cmd=0x%04x", __func__, port->port_number, cmd);
 
 	switch(cmd)
 	{
 		// Note here 
 		case TIOCMIWAIT:
-			dbg_ch34x("%s - port:%d TIOCMIWAIT", __func__, port->number);
+			dbg_ch34x("%s - port:%d TIOCMIWAIT", __func__, port->port_number);
 			return wait_modem_info(port, arg);
 		default:
 			dbg_ch34x("%s not supported=0x%04x", __func__, cmd);
@@ -793,7 +793,7 @@ static void ch34x_send( struct usb_serial_port *port )
 	struct ch34x_private *priv = usb_get_serial_port_data( port );
 	unsigned long flags;
 
-	dbg_ch34x("%s - port:%d", __func__, port->number );
+	dbg_ch34x("%s - port:%d", __func__, port->port_number );
 
 	spin_lock_irqsave( &priv->lock, flags );
 	if( priv->write_urb_in_use ) {
@@ -843,7 +843,7 @@ static int ch34x_write( struct usb_serial_port *port,
 	struct ch34x_private *priv = usb_get_serial_port_data(port);
 	unsigned long flags;
 
-	dbg_ch34x("%s - port:%d, %d bytes", __func__, port->number, count);
+	dbg_ch34x("%s - port:%d, %d bytes", __func__, port->port_number, count);
 
 	if( !count )
 		return count;
@@ -869,7 +869,7 @@ static int ch34x_write_room( struct usb_serial_port *port )
 	int room = 0;
 	unsigned long flags;
 
-	dbg_ch34x("%s - port:%d", __func__, port->number );
+	dbg_ch34x("%s - port:%d", __func__, port->port_number );
 
 	spin_lock_irqsave( &priv->lock, flags );
 	room = ch34x_buf_space_avail( priv->buf );
@@ -891,7 +891,7 @@ static int ch34x_chars_in_buffer( struct usb_serial_port *port )
 	int chars = 0;
 	unsigned long flags;
 
-	dbg_ch34x("%s - port:%d", __func__, port->number );
+	dbg_ch34x("%s - port:%d", __func__, port->port_number );
 
 	spin_lock_irqsave( &priv->lock, flags );
 	chars = ch34x_buf_data_avail( priv->buf );
@@ -997,7 +997,7 @@ static void ch34x_read_int_callback( struct urb *urb )
 	int status = urb->status;
 	int retval;
 
-	dbg_ch34x("%s port:%d", __func__, port->number );
+	dbg_ch34x("%s port:%d", __func__, port->port_number );
 
 	switch( status ) {
 		case 0: //success
@@ -1042,7 +1042,7 @@ static void ch34x_read_bulk_callback( struct urb *urb )
 	u8 line_status;
 	char tty_flag;
 
-	dbg_ch34x("%s - port:%d", __func__, port->number );
+	dbg_ch34x("%s - port:%d", __func__, port->port_number );
 	if( status ) {
 		dbg_ch34x("%s - urb status=%d", __func__, status );
 		if( status == -EPROTO ) {
@@ -1144,7 +1144,7 @@ static void ch34x_write_bulk_callback( struct urb *urb )
 	int retval;
 	int status = urb->status;
 
-	dbg_ch34x("%s - port:%d", __func__, port->number );
+	dbg_ch34x("%s - port:%d", __func__, port->port_number );
 
 	switch( status ) {
 		case 0: //success
